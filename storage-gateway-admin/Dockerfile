@@ -12,6 +12,9 @@ RUN npm ci && npm cache clean --force
 
 COPY . .
 
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build Next.js (standalone output สำหรับ production)
 RUN npm run build
 
