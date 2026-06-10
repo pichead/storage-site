@@ -8,4 +8,4 @@ echo "📦 Running Prisma migrations..."
 npx prisma migrate deploy
 
 echo "✅ Migrations complete. Starting application..."
-exec node dist/src/main.js
+exec node dist/main.js

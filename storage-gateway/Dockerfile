@@ -48,8 +48,8 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# สร้าง temp_downloads directory
-RUN mkdir -p /app/temp_downloads && chown nestjs:nodejs /app/temp_downloads
+# สร้าง temp_downloads และ logs directory พร้อมกำหนดสิทธิ์
+RUN mkdir -p /app/temp_downloads /app/logs && chown -R nestjs:nodejs /app/temp_downloads /app/logs
 
 # คัดลอกไฟล์จาก build stage
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
