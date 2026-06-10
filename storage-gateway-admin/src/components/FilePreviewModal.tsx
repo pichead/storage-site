@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, FileText, AlertTriangle } from 'lucide-react';
+import { API_URL } from '@/lib/api';
 
 interface FileItem {
   id: string;
@@ -38,7 +39,7 @@ export default function FilePreviewModal({
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   const previewUrl = file
-    ? `http://localhost:3333/api/v1/storage/files/${file.id}/download?token=${token}&preview=true`
+    ? `${API_URL}/storage/files/${file.id}/download?token=${token}&preview=true`
     : '';
 
   const isImage = file?.mimetype.startsWith('image/');
@@ -62,7 +63,7 @@ export default function FilePreviewModal({
       setTextPreview(null);
       setTextError(null);
 
-      fetch(`http://localhost:3333/api/v1/storage/files/${file.id}/download?token=${token}&preview=true`)
+      fetch(`${API_URL}/storage/files/${file.id}/download?token=${token}&preview=true`)
         .then(async (res) => {
           if (!res.ok) {
             throw new Error(`Failed to load: ${res.statusText}`);

@@ -10,7 +10,7 @@ import { generateThumbnail } from '@/lib/thumbnail';
 import SettingsPanel from '@/components/SettingsPanel';
 import UrlDownloaderPanel from '@/components/UrlDownloaderPanel';
 import FilePreviewModal from '@/components/FilePreviewModal';
-import { api } from '@/lib/api';
+import { api, API_URL } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -387,9 +387,9 @@ function DashboardContent() {
       const token = localStorage.getItem('accessToken');
       // ใช้ anchor element สั่งยิงดึงไฟล์เป็น Blob/Stream
       const link = document.createElement('a');
-      link.href = `http://localhost:3333/api/v1/storage/files/${id}/download`;
+      link.href = `${API_URL}/storage/files/${id}/download`;
       
-      const response = await fetch(`http://localhost:3333/api/v1/storage/files/${id}/download`, {
+      const response = await fetch(`${API_URL}/storage/files/${id}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
