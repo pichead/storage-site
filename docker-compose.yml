@@ -1,0 +1,111 @@
+# ============================================================
+# Docker Compose - Storage Site
+# รองรับ Raspberry Pi 5 (ARM64 / aarch64)
+# ============================================================
+
+services:
+
+  # ─── MySQL Database ───────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: storage-mysql
+    platform: linux/arm64
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_DATABASE_USER}
+      MYSQL_PASSWORD: ${MYSQL_DATABASE_PASSWORD}
+    ports:
+      - "${MYSQL_EXPOSED_PORT:-33066}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d   # optional init scripts
+    networks:
+      - storage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ─── NestJS Backend (API Gateway) ─────────────────────────
+  backend:
+    build:
+      context: ./storage-gateway
+      dockerfile: Dockerfile
+    container_name: storage-backend
+    platform: linux/arm64
+    environment:
+      PORT: 3333
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_DATABASE_USER}:${MYSQL_DATABASE_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      JWT_ACCESS_SECRET_KEY: ${JWT_ACCESS_SECRET_KEY}
+      JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY}
+      JWT_ACCESS_EXPIRATION_TIME: ${JWT_ACCESS_EXPIRATION_TIME:-900}
+      JWT_REFRESH_EXPIRATION_TIME: ${JWT_REFRESH_EXPIRATION_TIME:-2592000}
+    ports:
+      - "${BACKEND_PORT:-3333}:3333"
+    volumes:
+      - temp_downloads:/app/temp_downloads  # เก็บไฟล์ชั่วคราวระหว่าง download
+    networks:
+      - storage-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Next.js Frontend (Admin Panel) ───────────────────────
+  frontend:
+    build:
+      context: ./storage-gateway-admin
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: storage-frontend
+    platform: linux/arm64
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NODE_ENV: production
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - storage-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ─── phpMyAdmin (optional, สำหรับ debug DB) ───────────────
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: storage-phpmyadmin
+    platform: linux/arm64
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_DATABASE_USER}
+      PMA_PASSWORD: ${MYSQL_DATABASE_PASSWORD}
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 64M
+      MEMORY_LIMIT: 512M
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    networks:
+      - storage-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - tools   # รัน phpmyadmin เฉพาะเมื่อต้องการ: docker compose --profile tools up
+
+networks:
+  storage-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  temp_downloads:
+    driver: local

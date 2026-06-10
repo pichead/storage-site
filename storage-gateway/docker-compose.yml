@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+
+  app:
+    build:
+      context: .
+    container_name: ${APP_CONTAINER_NAME}
+    ports:
+      - "${APP_PORT}:3333"
+    networks:
+      - ${APP_NETWORK_NAME}
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:latest
+    container_name: mysql-con
+    environment:
+      MYSQL_ROOT_PASSWORD: ghdq721g6axb3129d62b9xn16c7g9238cg26x2g
+      MYSQL_DATABASE: storage
+      MYSQL_USER: f723gsad8h2fh0cw982hrf27asdg873
+      MYSQL_PASSWORD: nv8g2dsah0a09h27vwbd9d887fg2i08ffsd2sd5abn5b43sc43
+    ports:
+      - "33066:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - storage-network
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: storage-phpmyadmin-con
+    environment:
+      PMA_HOST: ${MYSQL_DATABASE_HOST}
+      PMA_USER: ${MYSQL_DATABASE_USER}
+      PMA_PASSWORD: ${MYSQL_DATABASE_PASSWORD}
+      PMA_PORT: ${MYSQL_DATABASE_PORT}
+      PMA_ARBITRARY: 1
+      PMA_SSL: 1
+      PMA_SSL_VERIFY: 1
+      PMA_ABSOLUTE_URI: http://localhost:8081/
+      UPLOAD_LIMIT: 64M
+      MEMORY_LIMIT: 512M
+      MAX_EXECUTION_TIME: 300
+      POST_MAX_SIZE: 64M
+      UPLOAD_MAX_FILESIZE: 64M
+    ports:
+      - "8081:80"
+    networks:
+      - storage-network
+    restart: unless-stopped
+
+
+networks:
+  storage-network:
+    external: true
+    driver: bridge
+
+volumes:
+  dbdata:

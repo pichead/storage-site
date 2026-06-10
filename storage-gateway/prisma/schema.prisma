@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  isLive    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model Client {
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+}
+
+model User {
+  id               String            @id @default(uuid())
+  username         String            @unique
+  password         String
+  folders          Folder[]
+  files            File[]
+  urlDownloadTasks UrlDownloadTask[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[] @relation("FolderToFolder")
+  files     File[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model File {
+  id        String      @id @default(uuid())
+  name      String
+  mimetype  String
+  size      Int
+  thumbnail String?     @db.LongText // เก็บรูป Base64
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId  String?
+  folder    Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  chunks    FileChunk[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model FileChunk {
+  id                  String   @id @default(uuid())
+  fileId              String
+  file                File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  chunkIndex          Int
+  size                Int
+  discordMessageId    String
+  discordAttachmentId String
+  cdnUrl              String   @db.Text
+  cdnExpiresAt        DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model DiscordConfig {
+  id             String   @id @default(uuid())
+  botToken       String   @db.Text
+  channelId      String
+  twitterCookies String?  @db.LongText
+  updatedAt      DateTime @updatedAt
+}
+
+model UrlDownloadTask {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url          String   @db.Text
+  name         String
+  progress     Int      @default(0)
+  status       String   // 'fetching_info' | 'downloading' | 'uploading_discord' | 'completed' | 'error'
+  errorMessage String?  @db.Text
+  folderId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
