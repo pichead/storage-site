@@ -11,7 +11,7 @@ import * as path from 'path';
 
 @Injectable()
 export class StorageService {
-  constructor(private readonly discordService: DiscordService) {}
+  constructor(private readonly discordService: DiscordService) { }
 
   // urlDownloadTasks was migrated to MySQL database Table UrlDownloadTask
 
@@ -246,7 +246,7 @@ export class StorageService {
   async initiateUpload(name: string, mimetype: string, size: number, folderId: string | null, userId: string) {
     try {
       logger.info(`[Upload] Initiating upload for file: "${name}" (mimetype: ${mimetype}, size: ${size} bytes, folderId: ${folderId || 'root'})`);
-      
+
       if (!name || !mimetype || size === undefined) {
         return RES.error(400, 'Missing file parameters', 'ข้อมูลไฟล์ไม่ครบถ้วน');
       }
@@ -281,7 +281,7 @@ export class StorageService {
   async uploadChunk(fileId: string, chunkIndex: number, size: number, fileBuffer: Buffer, userId: string) {
     try {
       logger.info(`[Upload] Starting upload of chunk ${chunkIndex} (size: ${size} bytes) for file ID: ${fileId}`);
-      
+
       // ตรวจสอบสถานะและสิทธิ์ของไฟล์
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
@@ -326,7 +326,7 @@ export class StorageService {
   async completeUpload(fileId: string, thumbnail: string | null, userId: string) {
     try {
       logger.info(`[Upload] Completing upload process for file ID: ${fileId}`);
-      
+
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
       });
@@ -356,7 +356,7 @@ export class StorageService {
   async downloadFile(fileId: string, userId: string, req: Request, res: Response, preview?: boolean) {
     try {
       logger.info(`[Download] Received download request for file ID: ${fileId}`);
-      
+
       // 1. ดึงประวัติและชิ้นส่วนของไฟล์แบบเรียงลำดับ
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
@@ -576,26 +576,26 @@ export class StorageService {
     }
 
     // ลบข้อความที่เก็บชิ้นไฟล์ในฝั่ง Discord ออกด้วยบอท
-    const config = await prisma.discordConfig.findFirst();
-    const botToken = config?.botToken || process.env.DISCORD_BOT_TOKEN;
-    const channelId = config?.channelId || process.env.DISCORD_CHANNEL_ID;
+    // const config = await prisma.discordConfig.findFirst();
+    // const botToken = config?.botToken || process.env.DISCORD_BOT_TOKEN;
+    // const channelId = config?.channelId || process.env.DISCORD_CHANNEL_ID;
 
-    if (botToken && channelId) {
-      for (const chunk of file.chunks) {
-        try {
-          await axios.delete(
-            `https://discord.com/api/v10/channels/${channelId}/messages/${chunk.discordMessageId}`,
-            {
-              headers: {
-                Authorization: `Bot ${botToken}`,
-              },
-            }
-          );
-        } catch (err) {
-          logger.warn(`Failed to delete message ${chunk.discordMessageId} from Discord: ${err.message}`);
-        }
-      }
-    }
+    // if (botToken && channelId) {
+    //   for (const chunk of file.chunks) {
+    //     try {
+    //       await axios.delete(
+    //         `https://discord.com/api/v10/channels/${channelId}/messages/${chunk.discordMessageId}`,
+    //         {
+    //           headers: {
+    //             Authorization: `Bot ${botToken}`,
+    //           },
+    //         }
+    //       );
+    //     } catch (err) {
+    //       logger.warn(`Failed to delete message ${chunk.discordMessageId} from Discord: ${err.message}`);
+    //     }
+    //   }
+    // }
 
     // ลบไฟล์ใน DB (และ Cascade ลบ Chunks ออกทันทีตาม FK constraint)
     await prisma.file.delete({
@@ -696,7 +696,7 @@ export class StorageService {
 
       // 2. สั่งดาวน์โหลดลงเครื่องผ่านช่อง temp
       const tempFilePath = path.join(tempDir, `${videoId}.${fileExt}`);
-      
+
       const args = [
         '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         '--merge-output-format', 'mp4',
@@ -732,9 +732,9 @@ export class StorageService {
 
       // ตรวจหาไฟล์ผลลัพธ์ที่สมบูรณ์
       const filesInTemp = fs.readdirSync(tempDir);
-      const completedFile = filesInTemp.find(f => 
-        f.startsWith(videoId) && 
-        !f.endsWith('.part') && 
+      const completedFile = filesInTemp.find(f =>
+        f.startsWith(videoId) &&
+        !f.endsWith('.part') &&
         !f.endsWith('.ytdl') &&
         !f.endsWith('.temp')
       );
@@ -756,7 +756,7 @@ export class StorageService {
       // 3. ทำภาพย่อ (Thumbnail) ผ่าน ffmpeg
       updateTask({ status: 'uploading_discord', progress: 50 });
       let thumbnailBase64: string | null = null;
-      
+
       const tryGenerateThumbnail = async (args: string[]): Promise<Buffer> => {
         return new Promise<Buffer>((resolve, reject) => {
           const cmd = `ffmpeg ${args.join(' ')}`;

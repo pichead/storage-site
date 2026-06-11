@@ -108,7 +108,6 @@ export default function FilePreviewModal({
             className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 mr-6"
           >
             <Download className="mr-1.5 h-4 w-4" />
-            ดาวน์โหลด
           </Button>
         </DialogHeader>
 
