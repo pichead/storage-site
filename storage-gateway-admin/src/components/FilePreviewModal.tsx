@@ -135,6 +135,7 @@ export default function FilePreviewModal({
                   src={previewUrl}
                   controls
                   autoPlay
+                  muted
                   className="w-full h-full"
                   onError={(e) => {
                     console.error('Video playing error');

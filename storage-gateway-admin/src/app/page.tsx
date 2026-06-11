@@ -142,26 +142,55 @@ function DashboardContent() {
         const formData = new FormData();
         formData.append('file', chunkBlob, file.name);
 
-        await api.post(`/storage/upload/chunk`, formData, {
-          params: {
-            fileId,
-            chunkIndex,
-            size: chunkSize,
-          },
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
+        // ระบบ Auto-Retry ลองใหม่อัตโนมัติ 3 ครั้ง หากสัญญาณขาดหายชั่วคราว
+        let uploadSuccess = false;
+        let retries = 3;
+        while (retries > 0 && !uploadSuccess) {
+          try {
+            await api.post(`/storage/upload/chunk`, formData, {
+              params: {
+                fileId,
+                chunkIndex,
+                size: chunkSize,
+              },
+              headers: {
+                'Content-Type': 'multipart/form-data',
+              },
+            });
+            uploadSuccess = true;
+          } catch (chunkError) {
+            retries--;
+            if (retries === 0) {
+              throw chunkError;
+            }
+            // เว้นระยะ 2 วินาทีก่อนลองอัปโหลดอีกครั้ง
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
 
         const currentProgress = Math.round(((chunkIndex + 1) / totalChunks) * 90);
         updateUploadTaskStatus(taskId, { progress: currentProgress });
       }
 
-      // 4. บันทึกและสรุปความสมบูรณ์ส่งท้ายพร้อมส่ง thumbnail
-      await api.post('/storage/upload/complete', {
-        fileId,
-        thumbnail: thumbnailBase64,
-      });
+      // 4. บันทึกและสรุปความสมบูรณ์ส่งท้ายพร้อมส่ง thumbnail (มีระบบ Auto-Retry 3 ครั้ง)
+      let completeSuccess = false;
+      let completeRetries = 3;
+      while (completeRetries > 0 && !completeSuccess) {
+        try {
+          await api.post('/storage/upload/complete', {
+            fileId,
+            thumbnail: thumbnailBase64,
+          });
+          completeSuccess = true;
+        } catch (completeError) {
+          completeRetries--;
+          if (completeRetries === 0) {
+            throw completeError;
+          }
+          // เว้นระยะ 2 วินาทีก่อนลองส่งสรุปผลอีกครั้ง
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      }
 
       updateUploadTaskStatus(taskId, { status: 'completed', progress: 100 });
       fetchContents();
