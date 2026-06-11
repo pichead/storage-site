@@ -56,18 +56,19 @@ model Folder {
 }
 
 model File {
-  id        String      @id @default(uuid())
-  name      String
-  mimetype  String
-  size      Int
-  thumbnail String?     @db.LongText // เก็บรูป Base64
-  userId    String
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folderId  String?
-  folder    Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  chunks    FileChunk[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id             String      @id @default(uuid())
+  name           String
+  mimetype       String
+  size           Int
+  thumbnail      String?     @db.LongText // เก็บรูป Base64
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId       String?
+  folder         Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  chunks         FileChunk[]
+  lastAccessedAt DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
 
 model FileChunk {
@@ -78,6 +79,7 @@ model FileChunk {
   size                Int
   discordMessageId    String
   discordAttachmentId String
+  discordChannelId    String?
   cdnUrl              String   @db.Text
   cdnExpiresAt        DateTime
   createdAt           DateTime @default(now())
@@ -90,6 +92,15 @@ model DiscordConfig {
   channelId      String
   twitterCookies String?  @db.LongText
   updatedAt      DateTime @updatedAt
+}
+
+model DiscordAccountPool {
+  id        String   @id @default(uuid())
+  botToken  String   @db.Text
+  channelId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UrlDownloadTask {

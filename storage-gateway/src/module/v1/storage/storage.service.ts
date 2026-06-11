@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { prisma } from 'src/database';
 import { RES } from 'src/utils';
 import { DiscordService } from '../discord/discord.service';
+import { DiscordQueueService } from '../discord/discord-queue.service';
 import logger from 'src/utils/logger';
 import axios from 'axios';
 import { Request, Response } from 'express';
@@ -11,7 +12,10 @@ import * as path from 'path';
 
 @Injectable()
 export class StorageService {
-  constructor(private readonly discordService: DiscordService) { }
+  constructor(
+    private readonly discordService: DiscordService,
+    private readonly discordQueueService: DiscordQueueService,
+  ) { }
 
   // urlDownloadTasks was migrated to MySQL database Table UrlDownloadTask
 
@@ -293,8 +297,11 @@ export class StorageService {
       // ตั้งชื่อไฟล์ชั่วคราวสำหรับส่งไปเก็บที่ Discord
       const chunkFilename = `${fileId}_chunk_${chunkIndex}`;
 
-      // อัปโหลดขึ้น Discord
-      const discordUpload = await this.discordService.uploadChunk(fileBuffer, chunkFilename);
+      // อัปเดตขึ้น Discord ผ่านระบบ Queue ลำดับความสำคัญต่ำ
+      const discordUpload = await this.discordQueueService.enqueue(
+        () => this.discordService.uploadChunk(fileBuffer, chunkFilename),
+        'low'
+      );
 
       // บันทึกชิ้นส่วนไฟล์ลงฐานข้อมูล
       const chunk = await prisma.fileChunk.create({
@@ -304,6 +311,7 @@ export class StorageService {
           size,
           discordMessageId: discordUpload.messageId,
           discordAttachmentId: discordUpload.attachmentId,
+          discordChannelId: discordUpload.channelId,
           cdnUrl: discordUpload.cdnUrl,
           cdnExpiresAt: discordUpload.expiresAt,
         },
@@ -372,6 +380,12 @@ export class StorageService {
         res.status(404).json(RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด'));
         return;
       }
+
+      // อัปเดตประวัติการเข้าใช้งานล่าสุดของไฟล์
+      prisma.file.update({
+        where: { id: fileId },
+        data: { lastAccessedAt: new Date() },
+      }).catch((err) => logger.error(`Failed to update lastAccessedAt: ${err.message}`));
 
       logger.info(`[Download] Found file: "${file.name}" (size: ${file.size} bytes, mimetype: ${file.mimetype}), range requested: ${req.headers.range || 'none'}`);
 
@@ -465,7 +479,13 @@ export class StorageService {
         if (isExpired) {
           try {
             logger.info(`Refreshing CDN URL for chunk ${chunk.chunkIndex} of file ${file.name}`);
-            const refreshed = await this.discordService.refreshAttachmentUrl(chunk.discordMessageId);
+            
+            // เรียกใช้งาน Refresh ลิงก์ผ่าน Queue ลำดับความสำคัญสูง (HIGH)
+            const refreshed = await this.discordQueueService.enqueue(
+              () => this.discordService.refreshAttachmentUrl(chunk.discordMessageId, chunk.discordChannelId || undefined),
+              'high'
+            );
+
             await prisma.fileChunk.update({
               where: { id: chunk.id },
               data: {
@@ -574,28 +594,6 @@ export class StorageService {
     if (!file) {
       return false;
     }
-
-    // ลบข้อความที่เก็บชิ้นไฟล์ในฝั่ง Discord ออกด้วยบอท
-    // const config = await prisma.discordConfig.findFirst();
-    // const botToken = config?.botToken || process.env.DISCORD_BOT_TOKEN;
-    // const channelId = config?.channelId || process.env.DISCORD_CHANNEL_ID;
-
-    // if (botToken && channelId) {
-    //   for (const chunk of file.chunks) {
-    //     try {
-    //       await axios.delete(
-    //         `https://discord.com/api/v10/channels/${channelId}/messages/${chunk.discordMessageId}`,
-    //         {
-    //           headers: {
-    //             Authorization: `Bot ${botToken}`,
-    //           },
-    //         }
-    //       );
-    //     } catch (err) {
-    //       logger.warn(`Failed to delete message ${chunk.discordMessageId} from Discord: ${err.message}`);
-    //     }
-    //   }
-    // }
 
     // ลบไฟล์ใน DB (และ Cascade ลบ Chunks ออกทันทีตาม FK constraint)
     await prisma.file.delete({
@@ -834,7 +832,12 @@ export class StorageService {
           fs.readSync(fd, buffer, 0, length, position);
 
           const chunkFilename = `${dbFile.id}_chunk_${chunkIndex}`;
-          const discordUpload = await this.discordService.uploadChunk(buffer, chunkFilename);
+          
+          // อัปโหลดขึ้น Discord ผ่านระบบ Queue ลำดับความสำคัญต่ำ
+          const discordUpload = await this.discordQueueService.enqueue(
+            () => this.discordService.uploadChunk(buffer, chunkFilename),
+            'low'
+          );
 
           const chunkRecord = await prisma.fileChunk.create({
             data: {
@@ -843,6 +846,7 @@ export class StorageService {
               size: length,
               discordMessageId: discordUpload.messageId,
               discordAttachmentId: discordUpload.attachmentId,
+              discordChannelId: discordUpload.channelId,
               cdnUrl: discordUpload.cdnUrl,
               cdnExpiresAt: discordUpload.expiresAt,
             },
