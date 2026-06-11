@@ -245,6 +245,8 @@ export class StorageService {
 
   async initiateUpload(name: string, mimetype: string, size: number, folderId: string | null, userId: string) {
     try {
+      logger.info(`[Upload] Initiating upload for file: "${name}" (mimetype: ${mimetype}, size: ${size} bytes, folderId: ${folderId || 'root'})`);
+      
       if (!name || !mimetype || size === undefined) {
         return RES.error(400, 'Missing file parameters', 'ข้อมูลไฟล์ไม่ครบถ้วน');
       }
@@ -268,6 +270,7 @@ export class StorageService {
         },
       });
 
+      logger.info(`[Upload] Successfully created file record in DB. File ID: ${file.id}`);
       return RES.ok(200, 'Upload initiated', 'เริ่มต้นอัปโหลดสำเร็จ', { fileId: file.id });
     } catch (error) {
       logger.error(error);
@@ -277,6 +280,8 @@ export class StorageService {
 
   async uploadChunk(fileId: string, chunkIndex: number, size: number, fileBuffer: Buffer, userId: string) {
     try {
+      logger.info(`[Upload] Starting upload of chunk ${chunkIndex} (size: ${size} bytes) for file ID: ${fileId}`);
+      
       // ตรวจสอบสถานะและสิทธิ์ของไฟล์
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
@@ -304,6 +309,7 @@ export class StorageService {
         },
       });
 
+      logger.info(`[Upload] Chunk ${chunkIndex} uploaded to Discord (messageId: ${discordUpload.messageId}) and recorded in DB (chunkId: ${chunk.id})`);
       return RES.ok(201, 'Chunk uploaded successfully', 'อัปโหลดชิ้นส่วนไฟล์สำเร็จ', {
         id: chunk.id,
         chunkIndex: chunk.chunkIndex,
@@ -319,6 +325,8 @@ export class StorageService {
 
   async completeUpload(fileId: string, thumbnail: string | null, userId: string) {
     try {
+      logger.info(`[Upload] Completing upload process for file ID: ${fileId}`);
+      
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
       });
@@ -333,6 +341,7 @@ export class StorageService {
         },
       });
 
+      logger.info(`[Upload] File upload successfully completed and finalized for file: "${file.name}" (ID: ${fileId})`);
       return RES.ok(200, 'File upload completed successfully', 'บันทึกอัปโหลดเสร็จสิ้นสำเร็จ', updated);
     } catch (error) {
       logger.error(error);
@@ -346,6 +355,8 @@ export class StorageService {
 
   async downloadFile(fileId: string, userId: string, req: Request, res: Response, preview?: boolean) {
     try {
+      logger.info(`[Download] Received download request for file ID: ${fileId}`);
+      
       // 1. ดึงประวัติและชิ้นส่วนของไฟล์แบบเรียงลำดับ
       const file = await prisma.file.findFirst({
         where: { id: fileId, userId },
@@ -357,9 +368,12 @@ export class StorageService {
       });
 
       if (!file) {
+        logger.warn(`[Download] File with ID ${fileId} not found in DB`);
         res.status(404).json(RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด'));
         return;
       }
+
+      logger.info(`[Download] Found file: "${file.name}" (size: ${file.size} bytes, mimetype: ${file.mimetype}), range requested: ${req.headers.range || 'none'}`);
 
       if (file.chunks.length === 0) {
         res.status(400).json(RES.error(400, 'File contains no chunks', 'ไฟล์นี้ไม่มีชิ้นส่วนเก็บอยู่'));
@@ -471,6 +485,8 @@ export class StorageService {
           const sliceEnd = Math.min(chunk.size - 1, end - chunk.start);
           const discordRangeHeader = `bytes=${sliceStart}-${sliceEnd}`;
 
+          logger.info(`[Download] Streaming chunk ${chunk.chunkIndex} of file "${file.name}" (bytes range: ${sliceStart}-${sliceEnd} in chunk)`);
+
           const chunkResponse = await axios.get(downloadUrl, {
             responseType: 'stream',
             headers: {
@@ -496,6 +512,7 @@ export class StorageService {
         }
       }
 
+      logger.info(`[Download] Successfully finished streaming file: "${file.name}" (ID: ${file.id})`);
       res.end();
     } catch (error) {
       logger.error(error);
@@ -643,6 +660,8 @@ export class StorageService {
     let cookiesFilePath: string | null = null;
 
     try {
+      logger.info(`[URL Download] Task ${taskId} started for URL: ${url}`);
+
       // ตรวจสอบคุกกี้สำหรับ x.com หรือ twitter.com
       if (url.includes('x.com') || url.includes('twitter.com')) {
         const config = await prisma.discordConfig.findFirst();
@@ -672,6 +691,7 @@ export class StorageService {
       const finalFileName = `${videoTitle}.${fileExt}`;
       const videoId = metadata.id || taskId;
 
+      logger.info(`[URL Download] Task ${taskId} metadata fetched: "${videoTitle}" (ext: ${fileExt}, videoId: ${videoId})`);
       updateTask({ name: finalFileName, status: 'downloading', progress: 5 });
 
       // 2. สั่งดาวน์โหลดลงเครื่องผ่านช่อง temp
@@ -731,6 +751,7 @@ export class StorageService {
 
       const fileStats = fs.statSync(actualFilePath);
       const totalSize = fileStats.size;
+      logger.info(`[URL Download] Task ${taskId} video downloaded to temp path: ${actualFilePath} (${totalSize} bytes)`);
 
       // 3. ทำภาพย่อ (Thumbnail) ผ่าน ffmpeg
       updateTask({ status: 'uploading_discord', progress: 50 });
@@ -798,6 +819,7 @@ export class StorageService {
           userId,
         },
       });
+      logger.info(`[URL Download] Task ${taskId} created database file record. File ID: ${dbFile.id}`);
 
       // 5. หั่นและส่งขึ้น Discord
       const CHUNK_SIZE = 8 * 1024 * 1024; // 8MB
@@ -814,7 +836,7 @@ export class StorageService {
           const chunkFilename = `${dbFile.id}_chunk_${chunkIndex}`;
           const discordUpload = await this.discordService.uploadChunk(buffer, chunkFilename);
 
-          await prisma.fileChunk.create({
+          const chunkRecord = await prisma.fileChunk.create({
             data: {
               fileId: dbFile.id,
               chunkIndex,
@@ -825,6 +847,8 @@ export class StorageService {
               cdnExpiresAt: discordUpload.expiresAt,
             },
           });
+
+          logger.info(`[URL Download] Task ${taskId} uploaded chunk ${chunkIndex + 1}/${totalChunks} (messageId: ${discordUpload.messageId}) and saved to DB (chunkId: ${chunkRecord.id})`);
 
           // อัปโหลดอยู่ระหว่าง 50% ถึง 95%
           const uploadProgress = Math.round(50 + ((chunkIndex + 1) / totalChunks) * 45);
@@ -842,12 +866,14 @@ export class StorageService {
         },
       });
 
+      logger.info(`[URL Download] Task ${taskId} upload complete. File finalized with thumbnail.`);
       updateTask({ status: 'completed', progress: 100 });
 
       // ลบไฟล์ตัวอย่างหลังอัปโหลดเสร็จสิ้น
       if (fs.existsSync(actualFilePath)) {
         fs.unlinkSync(actualFilePath);
       }
+      logger.info(`[URL Download] Task ${taskId} finished successfully. Cleaned up temporary files.`);
     } catch (error: any) {
       logger.error('Background download task failed: ' + error.message);
       updateTask({ status: 'error', errorMessage: error.message || 'ดาวน์โหลดล้มเหลว' });
