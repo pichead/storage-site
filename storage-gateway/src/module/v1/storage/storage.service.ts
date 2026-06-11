@@ -264,10 +264,17 @@ export class StorageService {
         }
       }
 
+      let resolvedMimetype = mimetype;
+      if (name.toLowerCase().endsWith('.mkv') && (mimetype === 'application/octet-stream' || !mimetype)) {
+        resolvedMimetype = 'video/x-matroska';
+      } else if (name.toLowerCase().endsWith('.mov') && (mimetype === 'application/octet-stream' || !mimetype)) {
+        resolvedMimetype = 'video/quicktime';
+      }
+
       const file = await prisma.file.create({
         data: {
           name,
-          mimetype,
+          mimetype: resolvedMimetype,
           size,
           folderId: folderId || null,
           userId,
@@ -811,7 +818,7 @@ export class StorageService {
       const dbFile = await prisma.file.create({
         data: {
           name: cleanFileName,
-          mimetype: actualExt === 'mp4' ? 'video/mp4' : (actualExt === 'webm' ? 'video/webm' : `video/${actualExt}`),
+          mimetype: actualExt === 'mp4' ? 'video/mp4' : (actualExt === 'webm' ? 'video/webm' : (actualExt === 'mkv' ? 'video/x-matroska' : (actualExt === 'mov' ? 'video/quicktime' : `video/${actualExt}`))),
           size: totalSize,
           folderId: folderId || null,
           userId,

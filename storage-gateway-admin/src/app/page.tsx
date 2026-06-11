@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, FolderPlus, Upload, Loader2, Menu, UploadCloud, CheckCircle, AlertCircle, X, Download } from 'lucide-react';
+import { Plus, FolderPlus, Upload, Loader2, Menu, UploadCloud, CheckCircle, AlertCircle, X, Download, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface FolderBreadcrumb {
   id: string;
@@ -78,8 +78,18 @@ function DashboardContent() {
   const [isMoveOpen, setIsMoveOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<{ id: string; name: string; type: 'file' | 'folder' } | null>(null);
 
-  // สถานะการเปิด/ปิด Sidebar บน Mobile
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // สถานะการเปิด/ปิด Sidebar
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // ปิด Sidebar อัตโนมัติเมื่ออยู่บนหน้าจอมือถือตอนเริ่มโหลดหน้าเว็บ
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
+
+  // สถานะการย่อ/ขยาย คิวอัปโหลดและดาวน์โหลด
+  const [isQueueExpanded, setIsQueueExpanded] = useState(true);
 
   // สถานะคิวงานอัปโหลดและดาวน์โหลดหลัก
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
@@ -102,10 +112,18 @@ function DashboardContent() {
       // 1. ดึงภาพย่อ Thumbnail (Base64) บนฝั่ง Client
       const thumbnailBase64 = await generateThumbnail(file);
 
+      // กำหนด mimetype โดยแปลง .mkv ให้เป็น video/x-matroska และ .mov เป็น video/quicktime
+      let resolvedMimetype = file.type || 'application/octet-stream';
+      if (file.name.toLowerCase().endsWith('.mkv') && (!file.type || file.type === 'application/octet-stream')) {
+        resolvedMimetype = 'video/x-matroska';
+      } else if (file.name.toLowerCase().endsWith('.mov') && (!file.type || file.type === 'application/octet-stream')) {
+        resolvedMimetype = 'video/quicktime';
+      }
+
       // 2. แจ้งขอเริ่มต้นการอัปโหลดไฟล์กับ backend
       const initResponse = await api.post('/storage/upload/initiate', {
         name: file.name,
-        mimetype: file.type || 'application/octet-stream',
+        mimetype: resolvedMimetype,
         size: file.size,
         folderId: currentFolderId, // ใช้โฟลเดอร์ปัจจุบัน
       });
@@ -491,9 +509,19 @@ function DashboardContent() {
           <div className="flex flex-1 flex-col overflow-hidden p-4 md:p-6">
             {/* Header section */}
             <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-5 flex-wrap">
-              <div>
-                <h2 className="text-xl font-bold text-white tracking-wide">ไดรฟ์ส่วนตัว</h2>
-                <p className="text-xs text-slate-500">จัดการโฟลเดอร์และอัปโหลดแบ่ง Chunk ไฟล์ฝากไว้บน Discord</p>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="hidden md:flex h-9 w-9 text-slate-400 hover:text-white hover:bg-slate-900/60 shrink-0"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-wide">ไดรฟ์ส่วนตัว</h2>
+                  <p className="text-xs text-slate-500">จัดการโฟลเดอร์และอัปโหลดแบ่ง Chunk ไฟล์ฝากไว้บน Discord</p>
+                </div>
               </div>
 
               {/* Action buttons */}
@@ -554,11 +582,45 @@ function DashboardContent() {
           </div>
         ) : currentView === 'url-downloader' ? (
           <div className="flex flex-1 flex-col overflow-hidden p-4 md:p-6">
-            <UrlDownloaderPanel folderId={currentFolderId} />
+            {/* Header section with Hamburger button */}
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-5 mb-5 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="hidden md:flex h-9 w-9 text-slate-400 hover:text-white hover:bg-slate-900/60 shrink-0"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-wide">ระบบดาวน์โหลดวิดีโอผ่าน URL (URL Downloader)</h2>
+                <p className="text-xs text-slate-500">ดาวน์โหลดไฟล์ตรงเข้าสู่คลังจัดเก็บ Discord ในเบื้องหลัง</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <UrlDownloaderPanel folderId={currentFolderId} />
+            </div>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col overflow-y-auto p-4 md:p-6">
-            <SettingsPanel />
+          <div className="flex flex-1 flex-col overflow-hidden p-4 md:p-6">
+            {/* Header section with Hamburger button */}
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-5 mb-5 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="hidden md:flex h-9 w-9 text-slate-400 hover:text-white hover:bg-slate-900/60 shrink-0"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <div>
+                <h2 className="text-xl font-bold text-white tracking-wide">ตั้งค่าระบบ (Settings)</h2>
+                <p className="text-xs text-slate-500">จัดการข้อมูลการเชื่อมต่อ สระบัญชีบอท และข้อมูลตั้งค่าระบบหลัก</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SettingsPanel />
+            </div>
           </div>
         )}
       </main>
@@ -668,87 +730,104 @@ function DashboardContent() {
       {(uploadTasks.length > 0 || downloadTasks.length > 0) && (
         <div className="fixed bottom-6 right-6 z-50 w-80 rounded-xl border border-slate-800 bg-slate-950/90 p-4 shadow-2xl backdrop-blur-md text-slate-100 animate-in slide-in-from-bottom-5 duration-300 flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-xs font-semibold text-slate-300 tracking-wider">สถานะการส่งข้อมูล ({uploadTasks.length + downloadTasks.length})</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setUploadTasks([]);
-                setDownloadTasks([]);
-              }}
-              className="h-6 w-6 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60"
+            <span 
+              className="text-xs font-semibold text-slate-300 tracking-wider cursor-pointer hover:text-white select-none flex-grow"
+              onClick={() => setIsQueueExpanded(!isQueueExpanded)}
             >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+              สถานะการส่งข้อมูล ({uploadTasks.length + downloadTasks.length})
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsQueueExpanded(!isQueueExpanded)}
+                className="h-6 w-6 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60"
+              >
+                {isQueueExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setUploadTasks([]);
+                  setDownloadTasks([]);
+                }}
+                className="h-6 w-6 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
 
-          <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-            {/* Upload Tasks */}
-            {uploadTasks.map((task) => (
-              <div key={task.id} className="text-xs space-y-1.5 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate max-w-[170px] font-medium text-slate-200">{task.name}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {task.status === 'uploading' && (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
-                        <span className="text-[10px] text-indigo-400 font-semibold">{task.progress}%</span>
-                      </>
-                    )}
-                    {task.status === 'completed' && (
-                      <>
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
-                        <span className="text-[10px] text-emerald-400 font-semibold">เสร็จสิ้น</span>
-                      </>
-                    )}
-                    {task.status === 'error' && (
-                      <>
-                        <AlertCircle className="h-3 w-3 text-rose-400" />
-                        <span className="text-[10px] text-rose-400 font-semibold">ล้มเหลว</span>
-                      </>
-                    )}
+          {isQueueExpanded && (
+            <div className="space-y-3 max-h-48 overflow-y-auto pr-1 animate-in fade-in duration-200">
+              {/* Upload Tasks */}
+              {uploadTasks.map((task) => (
+                <div key={task.id} className="text-xs space-y-1.5 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate max-w-[170px] font-medium text-slate-200">{task.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {task.status === 'uploading' && (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
+                          <span className="text-[10px] text-indigo-400 font-semibold">{task.progress}%</span>
+                        </>
+                      )}
+                      {task.status === 'completed' && (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-emerald-400" />
+                          <span className="text-[10px] text-emerald-400 font-semibold">เสร็จสิ้น</span>
+                        </>
+                      )}
+                      {task.status === 'error' && (
+                        <>
+                          <AlertCircle className="h-3 w-3 text-rose-400" />
+                          <span className="text-[10px] text-rose-400 font-semibold">ล้มเหลว</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {task.status === 'uploading' && (
+                    <Progress value={task.progress} className="h-1 bg-slate-800" />
+                  )}
                 </div>
-                {task.status === 'uploading' && (
-                  <Progress value={task.progress} className="h-1 bg-slate-800" />
-                )}
-              </div>
-            ))}
+              ))}
 
-            {/* Download Tasks */}
-            {downloadTasks.map((task) => (
-              <div key={task.id} className="text-xs space-y-1.5 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate max-w-[170px] font-medium text-slate-200">{task.name}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {task.status === 'downloading' && (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
-                        <span className="text-[10px] text-indigo-400 font-semibold">กำลังโหลด...</span>
-                      </>
-                    )}
-                    {task.status === 'completed' && (
-                      <>
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
-                        <span className="text-[10px] text-emerald-400 font-semibold">เสร็จสิ้น</span>
-                      </>
-                    )}
-                    {task.status === 'error' && (
-                      <>
-                        <AlertCircle className="h-3 w-3 text-rose-400" />
-                        <span className="text-[10px] text-rose-400 font-semibold">ล้มเหลว</span>
-                      </>
-                    )}
+              {/* Download Tasks */}
+              {downloadTasks.map((task) => (
+                <div key={task.id} className="text-xs space-y-1.5 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate max-w-[170px] font-medium text-slate-200">{task.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {task.status === 'downloading' && (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
+                          <span className="text-[10px] text-indigo-400 font-semibold">กำลังโหลด...</span>
+                        </>
+                      )}
+                      {task.status === 'completed' && (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-emerald-400" />
+                          <span className="text-[10px] text-emerald-400 font-semibold">เสร็จสิ้น</span>
+                        </>
+                      )}
+                      {task.status === 'error' && (
+                        <>
+                          <AlertCircle className="h-3 w-3 text-rose-400" />
+                          <span className="text-[10px] text-rose-400 font-semibold">ล้มเหลว</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {task.status === 'downloading' && (
+                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-500 animate-pulse w-2/3" />
+                    </div>
+                  )}
                 </div>
-                {task.status === 'downloading' && (
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 animate-pulse w-2/3" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

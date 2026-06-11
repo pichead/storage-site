@@ -44,6 +44,8 @@ export default function FilePreviewModal({
 
   const isImage = file?.mimetype.startsWith('image/');
   const isVideo = file?.mimetype.startsWith('video/');
+  const isMkv = file?.mimetype === 'video/x-matroska' || file?.name.toLowerCase().endsWith('.mkv');
+  const isMov = file?.mimetype === 'video/quicktime' || file?.name.toLowerCase().endsWith('.mov');
   const isPdf = file?.mimetype === 'application/pdf';
   const isText =
     file?.mimetype.startsWith('text/') ||
@@ -127,16 +129,26 @@ export default function FilePreviewModal({
           )}
 
           {isVideo && (
-            <div className="w-full max-w-2xl aspect-video rounded-lg overflow-hidden border border-slate-800 bg-black shadow-lg">
-              <video
-                src={previewUrl}
-                controls
-                autoPlay
-                className="w-full h-full"
-                onError={(e) => {
-                  console.error('Video playing error');
-                }}
-              />
+            <div className="w-full max-w-2xl flex flex-col gap-3">
+              <div className="w-full aspect-video rounded-lg overflow-hidden border border-slate-800 bg-black shadow-lg">
+                <video
+                  src={previewUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full"
+                  onError={(e) => {
+                    console.error('Video playing error');
+                  }}
+                />
+              </div>
+              {(isMkv || isMov) && (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>
+                    ไฟล์นี้เป็นวิดีโอรูปแบบ {isMkv ? 'MKV' : 'MOV'} ซึ่งเบราว์เซอร์ของคุณอาจไม่รองรับการเล่นโดยตรง หากเล่นไม่ได้แนะนำให้ดาวน์โหลดไปรับชมบนเครื่องครับ
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

@@ -130,12 +130,6 @@ export default function UrlDownloaderPanel({ folderId }: UrlDownloaderPanelProps
 
   return (
     <div className="flex flex-col gap-6 overflow-y-auto h-full p-1 font-sans">
-      {/* ส่วนหัวหน้าจอ */}
-      <div>
-        <h2 className="text-xl font-bold text-white tracking-wide">ระบบดาวน์โหลดวิดีโอผ่าน URL (URL Downloader)</h2>
-        <p className="text-xs text-slate-500 mt-1">วางลิงก์วิดีโอที่คุณต้องการเพื่อโหลดและอัปโหลดแบ่งพาร์ทเก็บเข้าคลัง Discord ทันทีแบบเบื้องหลัง</p>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ฟอร์มกรอกลิงก์ (ฝั่งซ้าย/บน) */}
         <div className="lg:col-span-1">

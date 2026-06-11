@@ -110,10 +110,18 @@ export default function UploadModal({
       // 1. ดึงภาพย่อ Thumbnail (Base64) บนฝั่ง Client
       const thumbnailBase64 = await generateThumbnail(file);
 
+      // กำหนด mimetype โดยแปลง .mkv ให้เป็น video/x-matroska และ .mov เป็น video/quicktime
+      let resolvedMimetype = file.type || 'application/octet-stream';
+      if (file.name.toLowerCase().endsWith('.mkv') && (!file.type || file.type === 'application/octet-stream')) {
+        resolvedMimetype = 'video/x-matroska';
+      } else if (file.name.toLowerCase().endsWith('.mov') && (!file.type || file.type === 'application/octet-stream')) {
+        resolvedMimetype = 'video/quicktime';
+      }
+
       // 2. แจ้งขอเริ่มต้นการอัปโหลดไฟล์กับ backend
       const initResponse = await api.post('/storage/upload/initiate', {
         name: file.name,
-        mimetype: file.type || 'application/octet-stream',
+        mimetype: resolvedMimetype,
         size: file.size,
         folderId,
       });
