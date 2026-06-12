@@ -66,6 +66,9 @@ model File {
   folderId       String?
   folder         Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
   chunks         FileChunk[]
+  isFavorite     Boolean     @default(false)
+  shareToken     String?     @unique
+  shareExpiresAt DateTime?
   lastAccessedAt DateTime    @default(now())
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

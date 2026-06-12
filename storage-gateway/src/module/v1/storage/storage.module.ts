@@ -8,5 +8,6 @@ import { CronRefreshService } from './cron-refresh.service';
   imports: [DiscordModule],
   controllers: [StorageController],
   providers: [StorageService, CronRefreshService],
+  exports: [StorageService],
 })
 export class StorageModule {}

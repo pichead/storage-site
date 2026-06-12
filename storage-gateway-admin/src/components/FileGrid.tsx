@@ -12,7 +12,9 @@ import {
   FileArchive,
   FileAudio,
   Eye,
-  FolderInput
+  FolderInput,
+  Star,
+  Link2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -34,6 +36,9 @@ interface FileItem {
   size: number;
   thumbnail: string | null;
   createdAt: string;
+  isFavorite: boolean;
+  shareToken?: string | null;
+  shareExpiresAt?: string | null;
 }
 
 interface FileGridProps {
@@ -48,6 +53,8 @@ interface FileGridProps {
   onDownloadFile: (id: string, name: string) => void;
   onMoveFile: (id: string, name: string) => void;
   onPreviewFile?: (file: FileItem) => void;
+  onToggleFavorite: (id: string, currentStatus: boolean) => void;
+  onShareFile: (file: FileItem) => void;
 }
 
 // ฟังก์ชันสำหรับแสดง Preview ใน Card (รูปภาพ หรือ Icon)
@@ -96,6 +103,8 @@ export default function FileGrid({
   onDownloadFile,
   onMoveFile,
   onPreviewFile,
+  onToggleFavorite,
+  onShareFile,
 }: FileGridProps) {
 
   return (
@@ -188,6 +197,23 @@ export default function FileGrid({
                   onClick={() => onPreviewFile?.(file)}
                 >
                   {getFilePreview(file.mimetype, file.thumbnail)}
+                  
+                  {/* Floating Star (Favorite) Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavorite(file.id, file.isFavorite);
+                    }}
+                    className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-200 border border-slate-800/40 shadow-md ${
+                      file.isFavorite
+                        ? 'bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400/20'
+                        : 'bg-slate-950/40 text-slate-400 hover:text-white hover:bg-slate-950/60'
+                    }`}
+                    title={file.isFavorite ? 'นำออกจากรายการโปรด' : 'เพิ่มในรายการโปรด'}
+                  >
+                    <Star className={`h-3.5 w-3.5 ${file.isFavorite ? 'fill-yellow-400' : ''}`} />
+                  </button>
                 </div>
 
                 {/* รายละเอียดด้านล่าง */}
@@ -219,6 +245,13 @@ export default function FileGrid({
                           >
                             <Eye className="h-3.5 w-3.5 text-slate-400" />
                             ดูไฟล์ (Preview)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onShareFile(file)}
+                            className="gap-2 cursor-pointer hover:bg-slate-800 focus:bg-slate-800 focus:text-white text-xs"
+                          >
+                            <Link2 className="h-3.5 w-3.5 text-slate-400" />
+                            แชร์ลิงก์สาธารณะ (Share)
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onDownloadFile(file.id, file.name)}

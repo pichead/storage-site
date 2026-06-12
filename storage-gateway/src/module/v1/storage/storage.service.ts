@@ -9,6 +9,7 @@ import { Request, Response } from 'express';
 import { spawn, exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class StorageService {
@@ -54,29 +55,96 @@ export class StorageService {
     }
   }
 
-  async listFolderContents(parentId: string | null, userId: string) {
+  async listFolderContents(
+    parentId: string | null,
+    userId: string,
+    search?: string | null,
+    filter?: string | null,
+    favoritesOnly?: boolean,
+  ) {
     try {
-      // ดึงโฟลเดอร์ย่อยทั้งหมดที่อยู่ในโฟลเดอร์นี้
-      const folders = await prisma.folder.findMany({
-        where: {
-          parentId: parentId || null,
-          userId,
-        },
-        orderBy: { name: 'asc' },
-      });
+      const fileWhereClause: any = { userId };
+      const folderWhereClause: any = { userId };
 
-      // ดึงไฟล์ทั้งหมดที่อยู่ในโฟลเดอร์นี้
+      // ถ้ามีการค้นหา คัดกรองประเภทไฟล์ หรือดูเฉพาะรายการโปรด เราจะดูแบบ Global ข้ามโฟลเดอร์
+      const isGlobalQuery = search || (filter && filter !== 'all') || favoritesOnly;
+
+      if (!isGlobalQuery) {
+        fileWhereClause.folderId = parentId || null;
+        folderWhereClause.parentId = parentId || null;
+      }
+
+      if (search) {
+        fileWhereClause.name = { contains: search };
+        folderWhereClause.name = { contains: search };
+      }
+
+      if (favoritesOnly) {
+        fileWhereClause.isFavorite = true;
+      }
+
+      if (filter && filter !== 'all') {
+        if (filter === 'video') {
+          fileWhereClause.OR = [
+            { mimetype: { startsWith: 'video/' } },
+            { name: { endsWith: '.mkv' } },
+            { name: { endsWith: '.mov' } },
+          ];
+        } else if (filter === 'image') {
+          fileWhereClause.mimetype = { startsWith: 'image/' };
+        } else if (filter === 'pdf') {
+          fileWhereClause.mimetype = 'application/pdf';
+        } else if (filter === 'text') {
+          fileWhereClause.OR = [
+            { mimetype: { startsWith: 'text/' } },
+            { mimetype: 'application/json' },
+            { name: { endsWith: '.txt' } },
+            { name: { endsWith: '.js' } },
+            { name: { endsWith: '.ts' } },
+            { name: { endsWith: '.json' } },
+            { name: { endsWith: '.html' } },
+            { name: { endsWith: '.css' } },
+            { name: { endsWith: '.md' } },
+          ];
+        } else if (filter === 'document') {
+          fileWhereClause.OR = [
+            { mimetype: { startsWith: 'text/' } },
+            { mimetype: 'application/pdf' },
+            { mimetype: { contains: 'document' } },
+            { mimetype: { contains: 'sheet' } },
+            { mimetype: { contains: 'msword' } },
+            { mimetype: { contains: 'pdf' } },
+            { name: { endsWith: '.txt' } },
+            { name: { endsWith: '.pdf' } },
+            { name: { endsWith: '.doc' } },
+            { name: { endsWith: '.docx' } },
+            { name: { endsWith: '.xls' } },
+            { name: { endsWith: '.xlsx' } },
+            { name: { endsWith: '.ppt' } },
+            { name: { endsWith: '.pptx' } },
+            { name: { endsWith: '.md' } },
+          ];
+        }
+      }
+
+      // ดึงโฟลเดอร์ย่อย (ถ้าไม่ใช่การดูเฉพาะไฟล์รายการโปรด หรือการคัดกรองประเภทไฟล์)
+      let folders: any[] = [];
+      if (!favoritesOnly && (!filter || filter === 'all')) {
+        folders = await prisma.folder.findMany({
+          where: folderWhereClause,
+          orderBy: { name: 'asc' },
+        });
+      }
+
+      // ดึงไฟล์ทั้งหมด
       const files = await prisma.file.findMany({
-        where: {
-          folderId: parentId || null,
-          userId,
-        },
+        where: fileWhereClause,
         orderBy: { name: 'asc' },
       });
 
       // ดึงข้อมูล breadcrumbs path (โครงสร้างโฟลเดอร์ย้อนกลับขึ้นไปถึง root)
       const path: any[] = [];
-      if (parentId) {
+      if (parentId && !isGlobalQuery) {
         let currentFolder = await prisma.folder.findFirst({
           where: { id: parentId, userId },
         });
@@ -368,13 +436,15 @@ export class StorageService {
   // FILES DOWNLOAD FLOW (ขั้นตอนการดาวน์โหลดไฟล์)
   // ==========================================
 
-  async downloadFile(fileId: string, userId: string, req: Request, res: Response, preview?: boolean) {
+  async downloadFile(fileId: string, userId: string | null, req: Request, res: Response, preview?: boolean, shareToken?: string) {
     try {
-      logger.info(`[Download] Received download request for file ID: ${fileId}`);
+      logger.info(`[Download] Received download request for file ID: ${fileId} (shareToken: ${shareToken || 'none'})`);
 
       // 1. ดึงประวัติและชิ้นส่วนของไฟล์แบบเรียงลำดับ
       const file = await prisma.file.findFirst({
-        where: { id: fileId, userId },
+        where: shareToken
+          ? { id: fileId, shareToken }
+          : { id: fileId, userId: userId! },
         include: {
           chunks: {
             orderBy: { chunkIndex: 'asc' },
@@ -385,6 +455,12 @@ export class StorageService {
       if (!file) {
         logger.warn(`[Download] File with ID ${fileId} not found in DB`);
         res.status(404).json(RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด'));
+        return;
+      }
+
+      if (shareToken && file.shareExpiresAt && file.shareExpiresAt < new Date()) {
+        logger.warn(`[Download] Share token for file ${fileId} has expired`);
+        res.status(410).json(RES.error(410, 'Share link expired', 'ลิงก์แชร์หมดอายุแล้ว'));
         return;
       }
 
@@ -947,6 +1023,108 @@ export class StorageService {
       this.runBackgroundUrlDownload(updatedTask.id, updatedTask.url, updatedTask.folderId, userId);
 
       return RES.ok(200, 'Task retried successfully', 'เริ่มดาวน์โหลดใหม่อีกครั้งแล้ว', updatedTask);
+    } catch (error) {
+      logger.error(error);
+      return RES.errorSystem();
+    }
+  }
+
+  async toggleFavoriteFile(fileId: string, isFavorite: boolean, userId: string) {
+    try {
+      const file = await prisma.file.findFirst({
+        where: { id: fileId, userId },
+      });
+      if (!file) {
+        return RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ระบุ');
+      }
+
+      const updatedFile = await prisma.file.update({
+        where: { id: fileId },
+        data: { isFavorite },
+      });
+
+      return RES.ok(200, 'Toggled favorite status', 'ปรับปรุงรายการโปรดสำเร็จ', updatedFile);
+    } catch (error) {
+      logger.error(error);
+      return RES.errorSystem();
+    }
+  }
+
+  async generateShareLink(fileId: string, expiresInHours: number = 24, userId: string) {
+    try {
+      const file = await prisma.file.findFirst({
+        where: { id: fileId, userId },
+      });
+      if (!file) {
+        return RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ระบุ');
+      }
+
+      const shareToken = crypto.randomUUID();
+      const shareExpiresAt = new Date();
+      shareExpiresAt.setHours(shareExpiresAt.getHours() + expiresInHours);
+
+      await prisma.file.update({
+        where: { id: fileId },
+        data: { shareToken, shareExpiresAt },
+      });
+
+      return RES.ok(200, 'Share link generated', 'สร้างลิงก์แชร์สำเร็จ', {
+        shareToken,
+        shareExpiresAt,
+      });
+    } catch (error) {
+      logger.error(error);
+      return RES.errorSystem();
+    }
+  }
+
+  async revokeShareLink(fileId: string, userId: string) {
+    try {
+      const file = await prisma.file.findFirst({
+        where: { id: fileId, userId },
+      });
+      if (!file) {
+        return RES.error(404, 'File not found', 'ไม่พบไฟล์ที่ระบุ');
+      }
+
+      const updatedFile = await prisma.file.update({
+        where: { id: fileId },
+        data: { shareToken: null, shareExpiresAt: null },
+      });
+
+      return RES.ok(200, 'Share link revoked', 'ยกเลิกการแชร์สำเร็จ', updatedFile);
+    } catch (error) {
+      logger.error(error);
+      return RES.errorSystem();
+    }
+  }
+
+  async downloadPublicFile(fileId: string, shareToken: string, req: Request, res: Response) {
+    return this.downloadFile(fileId, null, req, res, false, shareToken);
+  }
+
+  async getPublicFileMetadata(fileId: string, shareToken: string) {
+    try {
+      const file = await prisma.file.findFirst({
+        where: { id: fileId, shareToken },
+        select: {
+          id: true,
+          name: true,
+          mimetype: true,
+          size: true,
+          shareExpiresAt: true,
+        },
+      });
+
+      if (!file) {
+        return RES.error(404, 'File not found', 'ไม่พบไฟล์หรือลิงก์แชร์ไม่ถูกต้อง');
+      }
+
+      if (file.shareExpiresAt && file.shareExpiresAt < new Date()) {
+        return RES.error(410, 'Share link expired', 'ลิงก์แชร์หมดอายุแล้ว');
+      }
+
+      return RES.ok(200, 'Retrieved public file metadata', 'ดึงข้อมูลไฟล์สาธารณะสำเร็จ', file);
     } catch (error) {
       logger.error(error);
       return RES.errorSystem();

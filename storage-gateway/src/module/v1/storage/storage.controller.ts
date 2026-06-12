@@ -42,10 +42,19 @@ export class StorageController {
   @Get('folders')
   listFolderContents(
     @Query('parentId') parentId: string | null,
+    @Query('search') search: string | null,
+    @Query('filter') filter: string | null,
+    @Query('favoritesOnly') favoritesOnly: string | null,
     @Req() req: any,
   ) {
     const userId = req.user.id;
-    return this.storageService.listFolderContents(parentId, userId);
+    return this.storageService.listFolderContents(
+      parentId,
+      userId,
+      search,
+      filter,
+      favoritesOnly === 'true',
+    );
   }
 
   @Patch('folders/:id')
@@ -203,5 +212,31 @@ export class StorageController {
   retryUrlDownloadTask(@Param('id') id: string, @Req() req: any) {
     const userId = req.user.id;
     return this.storageService.retryUrlDownloadTask(id, userId);
+  }
+
+  @Patch('files/:id/favorite')
+  toggleFavoriteFile(
+    @Param('id') id: string,
+    @Body('isFavorite') isFavorite: boolean,
+    @Req() req: any,
+  ) {
+    const userId = req.user.id;
+    return this.storageService.toggleFavoriteFile(id, isFavorite, userId);
+  }
+
+  @Post('files/:id/share')
+  generateShareLink(
+    @Param('id') id: string,
+    @Body('expiresInHours') expiresInHours: number | null,
+    @Req() req: any,
+  ) {
+    const userId = req.user.id;
+    return this.storageService.generateShareLink(id, expiresInHours || 24, userId);
+  }
+
+  @Delete('files/:id/share')
+  revokeShareLink(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.id;
+    return this.storageService.revokeShareLink(id, userId);
   }
 }

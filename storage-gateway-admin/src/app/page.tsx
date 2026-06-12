@@ -10,6 +10,7 @@ import { generateThumbnail } from '@/lib/thumbnail';
 import SettingsPanel from '@/components/SettingsPanel';
 import UrlDownloaderPanel from '@/components/UrlDownloaderPanel';
 import FilePreviewModal from '@/components/FilePreviewModal';
+import ShareModal from '@/components/ShareModal';
 import { api, API_URL } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, FolderPlus, Upload, Loader2, Menu, UploadCloud, CheckCircle, AlertCircle, X, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, FolderPlus, Upload, Loader2, Menu, UploadCloud, CheckCircle, AlertCircle, X, Download, ChevronUp, ChevronDown, Search, Star, Folder, Video, Image as ImageIcon, FileText } from 'lucide-react';
 
 interface FolderBreadcrumb {
   id: string;
@@ -80,6 +81,16 @@ function DashboardContent() {
 
   // สถานะการเปิด/ปิด Sidebar
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // คัดกรองและค้นหาไฟล์ (Search & Filters)
+  const [searchVal, setSearchVal] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'video' | 'image' | 'document'>('all');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+
+  // สถานะการแชร์ไฟล์ (Sharing)
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareFile, setShareFile] = useState<any | null>(null);
 
   // ปิด Sidebar อัตโนมัติเมื่ออยู่บนหน้าจอมือถือตอนเริ่มโหลดหน้าเว็บ
   useEffect(() => {
@@ -276,6 +287,9 @@ function DashboardContent() {
       const response = await api.get('/storage/folders', {
         params: {
           parentId: currentFolderId || undefined,
+          search: searchQuery || undefined,
+          filter: filter !== 'all' ? filter : undefined,
+          favoritesOnly: favoritesOnly ? 'true' : undefined,
         },
       });
       const resData = response.data;
@@ -289,7 +303,7 @@ function DashboardContent() {
     } finally {
       setLoading(false);
     }
-  }, [currentFolderId]);
+  }, [currentFolderId, searchQuery, filter, favoritesOnly]);
 
   useEffect(() => {
     if (user) {
@@ -398,6 +412,26 @@ function DashboardContent() {
     } catch (error) {
       console.error(error);
     }
+  };
+
+  // จัดการสลับสถานะรายการโปรด (Favorite)
+  const handleToggleFavoriteFile = async (id: string, currentStatus: boolean) => {
+    try {
+      const response = await api.patch(`/storage/files/${id}/favorite`, {
+        isFavorite: !currentStatus,
+      });
+      if (response.data.statusCode === 200) {
+        fetchContents();
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite status', error);
+    }
+  };
+
+  // จัดการเปิดหน้าต่างแชร์ลิงก์สาธารณะ
+  const handleShareFile = (file: any) => {
+    setShareFile(file);
+    setIsShareOpen(true);
   };
 
   // เปิด move modal สำหรับไฟล์
@@ -583,6 +617,131 @@ function DashboardContent() {
             {/* Breadcrumb path */}
             <Breadcrumbs path={folderPath} onNavigate={handleNavigate} />
 
+            {/* Search and Quick Filters Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-3 border-b border-slate-800/40 mb-4 bg-slate-900/10 px-1 rounded-xl">
+              {/* Left Side: Search Bar */}
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setSearchQuery(searchVal);
+                }}
+                className="relative flex items-center w-full md:max-w-xs"
+              >
+                <Search className="absolute left-3.5 h-4 w-4 text-slate-500" />
+                <Input
+                  type="text"
+                  placeholder="ค้นหาไฟล์ หรือโฟลเดอร์..."
+                  value={searchVal}
+                  onChange={(e) => {
+                    setSearchVal(e.target.value);
+                    if (!e.target.value) {
+                      setSearchQuery('');
+                    }
+                  }}
+                  className="pl-10 pr-8 bg-slate-950/60 border-slate-800/80 text-xs text-slate-200 placeholder:text-slate-600 rounded-xl focus-visible:ring-1 focus-visible:ring-indigo-500/50 w-full"
+                />
+                {searchVal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchVal('');
+                      setSearchQuery('');
+                    }}
+                    className="absolute right-3 text-slate-500 hover:text-white transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </form>
+
+              {/* Right Side: Quick Filters Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                {/* All Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('all');
+                    setFavoritesOnly(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 ${
+                    filter === 'all' && !favoritesOnly
+                      ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-400 shadow-sm shadow-indigo-500/5'
+                      : 'bg-slate-900/30 border-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <Folder className="h-3.5 w-3.5" />
+                  ทั้งหมด
+                </button>
+
+                {/* Videos Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('video');
+                    setFavoritesOnly(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 ${
+                    filter === 'video' && !favoritesOnly
+                      ? 'bg-violet-600/10 border-violet-500/30 text-violet-400 shadow-sm shadow-violet-500/5'
+                      : 'bg-slate-900/30 border-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <Video className="h-3.5 w-3.5" />
+                  วิดีโอ
+                </button>
+
+                {/* Images Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('image');
+                    setFavoritesOnly(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 ${
+                    filter === 'image' && !favoritesOnly
+                      ? 'bg-rose-600/10 border-rose-500/30 text-rose-400 shadow-sm shadow-rose-500/5'
+                      : 'bg-slate-900/30 border-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  รูปภาพ
+                </button>
+
+                {/* Documents Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter('document');
+                    setFavoritesOnly(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 ${
+                    filter === 'document' && !favoritesOnly
+                      ? 'bg-blue-600/10 border-blue-500/30 text-blue-400 shadow-sm shadow-blue-500/5'
+                      : 'bg-slate-900/30 border-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  เอกสาร
+                </button>
+
+                {/* Favorites Tab */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFavoritesOnly(true);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-200 ${
+                    favoritesOnly
+                      ? 'bg-yellow-400/10 border-yellow-500/30 text-yellow-400 shadow-sm shadow-yellow-500/5'
+                      : 'bg-slate-900/30 border-slate-800/50 text-slate-400 hover:text-yellow-400 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <Star className="h-3.5 w-3.5 fill-current" />
+                  รายการโปรด
+                </button>
+              </div>
+            </div>
+
             {/* Content area */}
             <div className="flex-1 overflow-y-auto py-2 pr-1">
               {loading ? (
@@ -605,6 +764,8 @@ function DashboardContent() {
                     setPreviewFile(file);
                     setIsPreviewOpen(true);
                   }}
+                  onToggleFavorite={handleToggleFavoriteFile}
+                  onShareFile={handleShareFile}
                 />
               )}
             </div>
@@ -753,6 +914,17 @@ function DashboardContent() {
         itemType={moveTarget?.type || 'file'}
         excludeFolderId={moveTarget?.type === 'folder' ? moveTarget.id : undefined}
         currentFolderId={currentFolderId}
+      />
+
+      {/* -------------------- Share Modal -------------------- */}
+      <ShareModal
+        file={shareFile}
+        isOpen={isShareOpen}
+        onClose={() => {
+          setIsShareOpen(false);
+          setShareFile(null);
+        }}
+        onShareSuccess={fetchContents}
       />
 
       {/* Floating Status Panel (Bottom Right) */}
