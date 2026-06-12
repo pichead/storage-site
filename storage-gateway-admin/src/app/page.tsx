@@ -11,6 +11,7 @@ import SettingsPanel from '@/components/SettingsPanel';
 import UrlDownloaderPanel from '@/components/UrlDownloaderPanel';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import ShareModal from '@/components/ShareModal';
+import axios from 'axios';
 import { api, API_URL } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -145,6 +146,31 @@ function DashboardContent() {
 
       // 3. ทยอยสไลซ์และอัปโหลดไปทีละชิ้นส่วน
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        // ตรวจสอบและต่ออายุ Token ล่วงหน้า (Pre-emptive token refresh) เพื่อป้องกันปัญหาระบบ Interceptor ค้างระหว่างอัปโหลด FormData
+        const accessToken = localStorage.getItem('accessToken');
+        if (accessToken) {
+          try {
+            const payload = JSON.parse(atob(accessToken.split('.')[1]));
+            const exp = payload.exp * 1000;
+            // ถ้า Token จะหมดอายุในอีก 2 นาทีข้างหน้า ให้ทำการต่ออายุแบบเงียบ ๆ ทันที
+            if (Date.now() > exp - 120000) {
+              const refreshToken = localStorage.getItem('refreshToken');
+              if (refreshToken) {
+                const refreshRes = await axios.post(`${API_URL}/auth/refresh`, {
+                  refreshToken,
+                });
+                if (refreshRes.data?.statusCode === 200) {
+                  const newAccess = refreshRes.data.data.accessToken;
+                  localStorage.setItem('accessToken', newAccess);
+                  api.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
+                }
+              }
+            }
+          } catch (tokenError) {
+            console.error('Failed to pre-emptively refresh token', tokenError);
+          }
+        }
+
         const start = chunkIndex * CHUNK_SIZE;
         const end = Math.min(totalSize, start + CHUNK_SIZE);
         const chunkBlob = file.slice(start, end);

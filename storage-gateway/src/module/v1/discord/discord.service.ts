@@ -177,6 +177,7 @@ export class DiscordService {
             },
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
+            timeout: 120000, // 2-minute timeout to prevent hanging the queue
           }
         );
       });
@@ -259,6 +260,7 @@ export class DiscordService {
             headers: {
               Authorization: `Bot ${botToken}`,
             },
+            timeout: 30000, // 30-second timeout to prevent hanging the queue
           }
         )
       );

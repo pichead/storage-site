@@ -21,7 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:migrate:local": "npx dotenv -e .env.local -- npx prisma migrate dev --name init",
     "prisma:generate:local": "npx dotenv -e .env.local -- npx prisma generate",
-    "install-dependencies": "node ./src/utils/install-dependencies.js"
+    "install-dependencies": "node ./src/utils/install-dependencies.js",
+    "check-uploads": "ts-node -r tsconfig-paths/register src/utils/check-uploads.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.895.0",
