@@ -19,6 +19,9 @@ export class CronRefreshService implements OnModuleInit, OnModuleDestroy {
       this.runPreemptiveRefresh().catch((err) =>
         logger.error(`[Pre-emptive Refresh Error] ${err.message}`)
       );
+      this.cleanupStuckUploads().catch((err) =>
+        logger.error(`[Stuck Upload Cleanup Error] ${err.message}`)
+      );
     }, 10000);
 
     // และทำงานต่อทุก ๆ 30 นาที
@@ -26,6 +29,9 @@ export class CronRefreshService implements OnModuleInit, OnModuleDestroy {
       () => {
         this.runPreemptiveRefresh().catch((err) =>
           logger.error(`[Pre-emptive Refresh Error] ${err.message}`)
+        );
+        this.cleanupStuckUploads().catch((err) =>
+          logger.error(`[Stuck Upload Cleanup Error] ${err.message}`)
         );
       },
       30 * 60 * 1000 // 30 minutes
@@ -37,6 +43,61 @@ export class CronRefreshService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
+    }
+  }
+
+  async cleanupStuckUploads() {
+    logger.info('[Stuck Upload Cleanup] เริ่มต้นสแกนหาการอัปโหลดที่ค้างในระบบ...');
+
+    const CHUNK_SIZE = 8 * 1024 * 1024;
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    // ดึงไฟล์ทั้งหมดที่ไม่มี thumbnail หรือมีสิทธิ์เป็นไฟล์ที่ยังอัปโหลดไม่เสร็จ
+    const files = await prisma.file.findMany({
+      include: {
+        chunks: {
+          orderBy: { chunkIndex: 'desc' },
+          take: 1, // ดึงเฉพาะชิ้นล่าสุดเพื่อเช็คเวลา
+        },
+      },
+    });
+
+    let deleteCount = 0;
+
+    for (const file of files) {
+      const expectedChunks = Math.ceil(file.size / CHUNK_SIZE);
+      
+      // ดึงจำนวน chunk ทั้งหมดใน DB ของไฟล์นี้
+      const uploadedChunksCount = await prisma.fileChunk.count({
+        where: { fileId: file.id },
+      });
+
+      if (uploadedChunksCount < expectedChunks) {
+        let lastActiveTime = file.createdAt;
+        if (file.chunks.length > 0) {
+          lastActiveTime = file.chunks[0].createdAt;
+        }
+
+        if (lastActiveTime < oneHourAgo) {
+          const inactiveMinutes = Math.round((Date.now() - lastActiveTime.getTime()) / (1000 * 60));
+          logger.warn(
+            `[Stuck Upload Cleanup] พบไฟล์ที่อัปโหลดค้าง: "${file.name}" (ID: ${file.id}) นิ่งไปแล้ว ${inactiveMinutes} นาที (อัปโหลดไปแล้ว ${uploadedChunksCount}/${expectedChunks} chunks). กำลังดำเนินการลบ...`
+          );
+
+          // ลบไฟล์ (จะมี Cascade Delete ลบ FileChunk ใน DB อัตโนมัติ)
+          await prisma.file.delete({
+            where: { id: file.id },
+          });
+
+          deleteCount++;
+        }
+      }
+    }
+
+    if (deleteCount > 0) {
+      logger.info(`[Stuck Upload Cleanup] ลบการอัปโหลดที่ค้างเสร็จสิ้น จำนวน ${deleteCount} รายการ`);
+    } else {
+      logger.info('[Stuck Upload Cleanup] ไม่พบไฟล์อัปโหลดที่ค้างในระบบ');
     }
   }
 
