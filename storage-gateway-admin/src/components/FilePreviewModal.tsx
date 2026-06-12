@@ -103,23 +103,25 @@ export default function FilePreviewModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent showCloseButton={false} className="max-w-4xl w-[90vw] max-h-[85vh] h-[80vh] flex flex-col border-slate-800 bg-slate-950/95 text-slate-100 backdrop-blur-xl p-0 overflow-hidden">
         <div className="p-4 border-b border-slate-800 shrink-0 flex flex-row items-center justify-between gap-4 w-full">
-          <div className="overflow-hidden flex-1 mr-4">
-            <DialogTitle className="text-base font-bold text-white truncate">
-              {file.name}
-            </DialogTitle>
-            <p className="text-[10px] text-slate-500 mt-0.5">
-              {file.mimetype} • {(file.size / (1024 * 1024)).toFixed(2)} MB
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-3 overflow-hidden flex-1 mr-4">
             <Button
               onClick={() => onDownload(file.id, file.name)}
               size="sm"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-md shadow-indigo-600/10 gap-1.5"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/10 h-9 w-9 p-0 rounded-lg shrink-0 flex items-center justify-center"
+              title="ดาวน์โหลดไฟล์"
             >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">ดาวน์โหลด</span>
+              <Download className="h-4.5 w-4.5" />
             </Button>
+            <div className="overflow-hidden">
+              <DialogTitle className="text-base font-bold text-white truncate">
+                {file.name}
+              </DialogTitle>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                {file.mimetype} • {(file.size / (1024 * 1024)).toFixed(2)} MB
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0">
             <Button
               variant="ghost"
               onClick={onClose}
