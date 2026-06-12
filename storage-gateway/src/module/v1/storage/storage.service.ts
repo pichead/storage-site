@@ -703,7 +703,7 @@ export class StorageService {
       const tempFilePath = path.join(tempDir, `${videoId}.${fileExt}`);
 
       const args = [
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        '-f', 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[vcodec^=avc1]+bestaudio/best[vcodec^=avc1]/best',
         '--merge-output-format', 'mp4',
         '-o', tempFilePath,
       ];

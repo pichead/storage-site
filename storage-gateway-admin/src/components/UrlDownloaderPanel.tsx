@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Link2, CloudDownload, CheckCircle2, AlertCircle, Loader2, Play, Trash2, RefreshCw } from 'lucide-react';
+import { Link2, CloudDownload, CheckCircle2, AlertCircle, Loader2, Play, Trash2, RefreshCw, Copy, Check } from 'lucide-react';
 
 interface DownloadTask {
   id: string;
@@ -27,6 +27,7 @@ export default function UrlDownloaderPanel({ folderId }: UrlDownloaderPanelProps
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
 
   // ฟังก์ชันเริ่มการดาวน์โหลด
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,13 +102,26 @@ export default function UrlDownloaderPanel({ folderId }: UrlDownloaderPanelProps
     }
   };
 
-  // เริ่มต้นดาวน์โหลดอีกครั้งเมื่อเกิดข้อผิดพลาด
+  // เริ่มต้นดาวน์โหลดอีกครั้งเมื่อเกิดข้อผิดพลาดหรือต้องการโหลดใหม่
   const handleRetryTask = async (taskId: string) => {
     try {
       await api.post(`/storage/url-download/tasks/${taskId}/retry`);
       fetchTasks();
     } catch (err) {
       console.error('Failed to retry task', err);
+    }
+  };
+
+  // คัดลอกลิงก์ต้นทาง
+  const handleCopyLink = async (taskId: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedTaskId(taskId);
+      setTimeout(() => {
+        setCopiedTaskId(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy link', err);
     }
   };
 
@@ -270,22 +284,37 @@ export default function UrlDownloaderPanel({ folderId }: UrlDownloaderPanelProps
                               </span>
                             )}
                           </div>
-                          {task.status === 'error' && (
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(task.id, task.url)}
+                            className="p-1 hover:bg-slate-800 text-slate-500 hover:text-emerald-400 rounded transition-colors"
+                            title="คัดลอกลิงก์ต้นทาง"
+                          >
+                            {copiedTaskId === task.id ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+
+                          {(task.status === 'completed' || task.status === 'error') && (
                             <button
                               type="button"
                               onClick={() => handleRetryTask(task.id)}
                               className="p-1 hover:bg-slate-800 text-slate-500 hover:text-indigo-400 rounded transition-colors"
-                              title="ลองใหม่อีกครั้ง"
+                              title="ดาวน์โหลดใหม่อีกครั้ง"
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
                             </button>
                           )}
+
                           {(task.status === 'completed' || task.status === 'error') && (
                             <button
                               type="button"
                               onClick={() => handleDeleteTask(task.id)}
                               className="p-1 hover:bg-slate-800 text-slate-500 hover:text-rose-400 rounded transition-colors"
-                              title="ลบรายการนี้"
+                              title="ลบประวัติรายการนี้"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

@@ -36,6 +36,7 @@ export default function FilePreviewModal({
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const [loadingText, setLoadingText] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState(false);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   const previewUrl = file
@@ -90,6 +91,12 @@ export default function FilePreviewModal({
     }
   }, [isOpen, file, isText, token]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setVideoError(false);
+    }
+  }, [isOpen, file]);
+
   if (!file) return null;
 
   return (
@@ -139,9 +146,18 @@ export default function FilePreviewModal({
                   className="w-full h-full"
                   onError={(e) => {
                     console.error('Video playing error');
+                    setVideoError(true);
                   }}
                 />
               </div>
+              {videoError && (
+                <div className="flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-xs text-rose-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>
+                    ไม่สามารถเล่นวิดีโอนี้ได้ อุปกรณ์หรือเบราว์เซอร์ของคุณอาจไม่รองรับ Codec ของวิดีโอนี้ (เช่น AV1/VP9 บน iPhone) แนะนำให้กดดาวน์โหลดไปรับชมด้วยเครื่องเล่นแอปพลิเคชัน (เช่น VLC) แทนครับ
+                  </span>
+                </div>
+              )}
               {(isMkv || isMov) && (
                 <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-400">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
