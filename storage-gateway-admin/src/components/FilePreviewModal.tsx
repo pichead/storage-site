@@ -103,6 +103,13 @@ export default function FilePreviewModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] h-[80vh] flex flex-col border-slate-800 bg-slate-950/95 text-slate-100 backdrop-blur-xl p-0 overflow-hidden">
         <DialogHeader className="p-4 border-b border-slate-800 shrink-0 flex flex-row items-center justify-between gap-4">
+          <Button
+            onClick={() => onDownload(file.id, file.name)}
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 mr-6"
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+          </Button>
           <div className="overflow-hidden">
             <DialogTitle className="text-base font-bold text-white truncate pr-6">
               {file.name}
@@ -111,13 +118,7 @@ export default function FilePreviewModal({
               {file.mimetype} • {(file.size / (1024 * 1024)).toFixed(2)} MB
             </p>
           </div>
-          <Button
-            onClick={() => onDownload(file.id, file.name)}
-            size="sm"
-            className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 mr-6"
-          >
-            <Download className="mr-1.5 h-4 w-4" />
-          </Button>
+
         </DialogHeader>
 
         {/* Content Viewer */}
