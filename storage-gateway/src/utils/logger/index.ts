@@ -2,7 +2,6 @@ import winston from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 
 const consoleFormat = winston.format.combine(
-  winston.format.errors({ stack: true }),
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
   winston.format.colorize(),
   winston.format.printf(({ level, message, timestamp, stack }) => {
@@ -12,6 +11,7 @@ const consoleFormat = winston.format.combine(
 
 const logger = winston.createLogger({
   level: "info",
+  format: winston.format.errors({ stack: true }),
   transports: [
     new winston.transports.Console({
       format: consoleFormat,
