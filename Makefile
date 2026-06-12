@@ -80,3 +80,8 @@ migrate:
 # ดูสถานะ services
 status:
 	docker compose ps
+
+pull-deploy:
+	git fetch
+	git pull
+	docker compose up -d --build
