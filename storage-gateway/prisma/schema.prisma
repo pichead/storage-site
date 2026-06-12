@@ -59,7 +59,7 @@ model File {
   id             String      @id @default(uuid())
   name           String
   mimetype       String
-  size           Int
+  size           Float
   thumbnail      String?     @db.LongText // เก็บรูป Base64
   userId         String
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
