@@ -2,10 +2,11 @@ import winston from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 
 const consoleFormat = winston.format.combine(
+  winston.format.errors({ stack: true }),
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
   winston.format.colorize(),
-  winston.format.printf(({ level, message, timestamp }) => {
-    return `[${timestamp}] ${level}: ${message}`;
+  winston.format.printf(({ level, message, timestamp, stack }) => {
+    return `[${timestamp}] ${level}: ${stack || message}`;
   })
 );
 
